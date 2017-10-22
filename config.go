@@ -37,6 +37,10 @@ type configDaemon struct {
 	// Default: "[::1]:706"
 	Listen				string	`toml:"listen"`
 
+	// Print debug messages about iptables
+	// Default: 0
+	Verbose				uint	`toml:"verbose"`
+
 	// HTTP path to provide service on
 	// Default: "/"
 	HTTPPath			string	`toml:"http-path"`

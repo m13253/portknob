@@ -305,7 +305,9 @@ func (fw *firewall) doRemove(addr string) error {
 }
 
 func (fw *firewall) execCmd(name string, arg ...string) error {
-	log.Printf("Exec: %s %s\n", name, strings.Join(arg, " "))
+	if fw.conf.Daemon.Verbose >= 1 {
+		log.Printf("Exec: %s %s\n", name, strings.Join(arg, " "))
+	}
 	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
