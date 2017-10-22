@@ -37,7 +37,7 @@ func newCache(conf *config) *cache {
 
 func (c *cache) Start() error {
 	var err error
-	c.db, err = bolt.Open(c.conf.Daemon.CacheDatabase, 0644, nil)
+	c.db, err = bolt.Open(c.conf.Daemon.CacheDatabase, 0600, nil)
 	if err != nil {
 		return err
 	}

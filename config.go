@@ -135,7 +135,7 @@ func loadConfig(path string) (*config, error) {
 		conf.Daemon.IPv6Prefix = 48
 	}
 	if conf.Daemon.CacheDatabase == "" {
-		conf.Daemon.CacheDatabase = "portknob.db"
+		conf.Daemon.CacheDatabase = "/var/cache/portknob.db"
 	}
 	if conf.Daemon.CookieLifespan == 0 {
 		conf.Daemon.CookieLifespan = 604800
