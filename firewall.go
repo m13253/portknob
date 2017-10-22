@@ -26,39 +26,40 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type firewall struct {
 	conf		*config
+	cache		*cache
 	chainName	string
 	listName	string
 	stopReq		chan os.Signal
 	insert4Req	chan string
-	remove4Req	chan string
 	insert6Req	chan string
-	remove6Req	chan string
 }
 
 func newFirewall(conf *config) *firewall {
 	fw := &firewall {
 		conf:		conf,
+		cache:		newCache(conf),
 		chainName:	conf.Daemon.FirewallChainName,
 		listName:	conf.Daemon.FirewallChainName + "-list",
 		stopReq:	make(chan os.Signal, 1),
 		insert4Req:	make(chan string),
-		remove4Req:	make(chan string),
 		insert6Req:	make(chan string),
-		remove6Req:	make(chan string),
 	}
 	return fw
 }
 
 func (fw *firewall) Start() error {
+	err := fw.cache.Start()
+	if err != nil { return err }
+
 	signal.Notify(fw.stopReq, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	// IPv4
-	err := fw.execCmd("iptables", "-N", fw.listName)
-	if err != nil { return err }
+	fw.execCmd("iptables", "-N", fw.listName)
 	if fw.conf.Daemon.FirewallDenyMethod == "reject" {
 		err = fw.execCmd("iptables", "-I", fw.listName, "-j", "REJECT", "--reject-with", "icmp-port-unreachable")
 		if err != nil { return err }
@@ -68,14 +69,12 @@ func (fw *firewall) Start() error {
 		err = fw.execCmd("iptables", "-I", fw.listName, "-j", "DROP")
 		if err != nil { return err }
 	}
-	err = fw.execCmd("iptables", "-N", fw.chainName)
-	if err != nil { return err }
+	fw.execCmd("iptables", "-N", fw.chainName)
 	err = fw.execCmd("iptables", "-I", fw.chainName, "-j", "RETURN")
 	if err != nil { return err }
 
 	// IPv6
-	err = fw.execCmd("ip6tables", "-N", fw.listName)
-	if err != nil { return err }
+	fw.execCmd("ip6tables", "-N", fw.listName)
 	if fw.conf.Daemon.FirewallDenyMethod == "reject" {
 		err = fw.execCmd("ip6tables", "-I", fw.listName, "-j", "REJECT", "--reject-with", "icmp6-port-unreachable")
 		if err != nil { return err }
@@ -85,8 +84,7 @@ func (fw *firewall) Start() error {
 		err = fw.execCmd("ip6tables", "-I", fw.listName, "-j", "DROP")
 		if err != nil { return err }
 	}
-	err = fw.execCmd("ip6tables", "-N", fw.chainName)
-	if err != nil { return err }
+	fw.execCmd("ip6tables", "-N", fw.chainName)
 	err = fw.execCmd("ip6tables", "-I", fw.chainName, "-j", "RETURN")
 	if err != nil { return err }
 
@@ -98,7 +96,10 @@ func (fw *firewall) Start() error {
 	err = fw.execCmd("ip6tables", "-I", "INPUT", "-j", fw.chainName)
 	if err != nil { return err }
 
+	fw.doRestore()
+
 	go fw.acceptRequests()
+
 	return nil
 }
 
@@ -114,30 +115,18 @@ func (fw *firewall) Insert(addr string) error {
 			Text: addr,
 		}
 	}
+
+	if fw.conf.Daemon.FirewallLifespan != 0 {
+		err := fw.cache.Set(addr, time.Now().Add(time.Duration(fw.conf.Daemon.FirewallLifespan) * time.Second))
+		if err != nil {
+			return err
+		}
+	}
+
 	if ip.To4() != nil {
 		fw.insert4Req <- addr
 	} else {
 		fw.insert6Req <- addr
-	}
-	return nil
-}
-
-func (fw *firewall) Remove(addr string) error {
-	slash := strings.IndexByte(addr, '/')
-	if slash < 0 {
-		slash = len(addr)
-	}
-	ip := net.ParseIP(addr[:slash])
-	if ip == nil {
-		return &net.ParseError {
-			Type: "IP address",
-			Text: addr,
-		}
-	}
-	if ip.To4() != nil {
-		fw.remove4Req <- addr
-	} else {
-		fw.remove6Req <- addr
 	}
 	return nil
 }
@@ -214,22 +203,19 @@ func (fw *firewall) generateFilters(rules []configFirewall) {
 }
 
 func (fw *firewall) acceptRequests() {
+	cleanupTick := time.Tick(1 * time.Minute)
 	for {
 		select {
 		case <-fw.stopReq:
 			fw.doStop()
 			return
-		case addr := <-fw.remove4Req:
-			err := fw.execCmd("iptables", "-D", fw.listName, "-s", addr, "-j", "RETURN")
-			if err != nil { log.Println(err) }
+		case <-cleanupTick:
+			fw.doCleanup()
 		case addr := <-fw.insert4Req:
 			err := fw.execCmd("iptables", "-I", fw.listName, "-s", addr, "-j", "RETURN")
 			if err != nil { log.Println(err) }
-		case addr := <-fw.remove6Req:
-			err := fw.execCmd("ip6tables", "-D", fw.listName, "-s", addr, "-j", "RETURN")
-			if err != nil { log.Println(err) }
 		case addr := <-fw.insert6Req:
-			err :=fw.execCmd("ip6tables", "-I", fw.listName, "-s", addr, "-j", "RETURN")
+			err := fw.execCmd("ip6tables", "-I", fw.listName, "-s", addr, "-j", "RETURN")
 			if err != nil { log.Println(err) }
 		}
 	}
@@ -253,11 +239,73 @@ func (fw *firewall) doStop() {
 	fw.execCmd("ip6tables", "-F", fw.listName)
 	fw.execCmd("ip6tables", "-X", fw.listName)
 
+	fw.cache.Stop()
+
 	os.Exit(0)
 }
 
+func (fw *firewall) doCleanup() {
+	now := time.Now()
+	fw.cache.Iter(func (addr string, expires time.Time) bool {
+		if now.Sub(expires) >= 0 {
+			fw.doRemove(addr)
+			return true
+		} else {
+			return false
+		}
+	})
+}
+
+func (fw *firewall) doRestore() {
+	now := time.Now()
+	fw.cache.Iter(func (addr string, expires time.Time) bool {
+		if now.Sub(expires) >= 0 {
+			return true
+		} else {
+			slash := strings.IndexByte(addr, '/')
+			if slash < 0 {
+				slash = len(addr)
+			}
+			ip := net.ParseIP(addr[:slash])
+			if ip == nil {
+				return true
+			}
+
+			if ip.To4() != nil {
+				fw.execCmd("iptables", "-I", fw.listName, "-s", addr, "-j", "RETURN")
+			} else {
+				fw.execCmd("ip6tables", "-I", fw.listName, "-s", addr, "-j", "RETURN")
+			}
+			return false
+		}
+	})
+}
+
+
+func (fw *firewall) doRemove(addr string) error {
+	slash := strings.IndexByte(addr, '/')
+	if slash < 0 {
+		slash = len(addr)
+	}
+	ip := net.ParseIP(addr[:slash])
+	if ip == nil {
+		return &net.ParseError {
+			Type: "IP address",
+			Text: addr,
+		}
+	}
+	if ip.To4() != nil {
+		err := fw.execCmd("iptables", "-D", fw.listName, "-s", addr, "-j", "RETURN")
+		if err != nil { log.Println(err) }
+	} else {
+		err := fw.execCmd("ip6tables", "-D", fw.listName, "-s", addr, "-j", "RETURN")
+		if err != nil { log.Println(err) }
+	}
+	return nil
+}
+
 func (fw *firewall) execCmd(name string, arg ...string) error {
-	//log.Printf("Exec: %s %s\n", name, strings.Join(arg, " "))
+	log.Printf("Exec: %s %s\n", name, strings.Join(arg, " "))
 	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

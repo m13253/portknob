@@ -21,6 +21,7 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 	"strings"
 	"github.com/BurntSushi/toml"
 )
@@ -62,7 +63,7 @@ type configDaemon struct {
 
 	// Lifespan to cache firewall whitelist for the visitor
 	// Default: 604800 (7 days)
-	FirewallLifespan	uint	`toml:"firewall-lifespan'`
+	FirewallLifespan	uint	`toml:"firewall-lifespan"`
 
 	// Firewall chain name for Portknob to work on
 	// Default: "portknob"
@@ -101,9 +102,17 @@ type configFirewall struct {
 
 func loadConfig(path string) (*config, error) {
 	conf := &config {}
-	_, err := toml.DecodeFile(path, conf)
+	metaData, err := toml.DecodeFile(path, conf)
 	if err != nil {
 		return nil, err
+	}
+
+	undecoded := metaData.Undecoded()
+	for _, key := range metaData.Undecoded() {
+		log.Printf("unknown option %q\n", key.String())
+	}
+	if len(undecoded) != 0 {
+		os.Exit(1)
 	}
 
 	if conf.Daemon.Listen == "" {
@@ -136,27 +145,24 @@ func loadConfig(path string) (*config, error) {
 	if conf.Daemon.FirewallDenyMethod == "" {
 		conf.Daemon.FirewallDenyMethod = "reject"
 	} else if conf.Daemon.FirewallDenyMethod != "drop" && conf.Daemon.FirewallDenyMethod != "reject" {
-		conf.reportConfigError("filewall-deny-method", conf.Daemon.FirewallDenyMethod, "reject", "")
-		conf.Daemon.FirewallDenyMethod = "reject"
+		conf.reportConfigError("filewall-deny-method", conf.Daemon.FirewallDenyMethod)
 	}
 
 	for i, v := range conf.Firewall {
 		if v.Proto != "tcp" && v.Proto != "udp" && v.Proto != "" {
-			conf.reportConfigError("proto", v.Proto, "", "both")
-			conf.Firewall[i].Proto = ""
+			conf.reportConfigError("proto", v.Proto)
 		}
 		if v.Dest == "any" || v.Dest == "" {
-			v.Dest = ""
-			v.DestIP = nil
+			conf.Firewall[i].Dest = ""
+			conf.Firewall[i].DestIP = nil
 		} else {
 			slash := strings.IndexByte(v.Dest, '/')
 			if slash < 0 {
 				slash = len(v.Dest)
 			}
-			v.DestIP = net.ParseIP(v.Dest[:slash])
-			if v.DestIP == nil {
-				conf.reportConfigError("dest", v.Dest, "any", "")
-				v.Dest = ""
+			conf.Firewall[i].DestIP = net.ParseIP(v.Dest[:slash])
+			if conf.Firewall[i].DestIP == nil {
+				conf.reportConfigError("dest", v.Dest)
 			}
 		}
 		if v.DestPort == "" {
@@ -167,10 +173,6 @@ func loadConfig(path string) (*config, error) {
 	return conf, nil
 }
 
-func (conf *config) reportConfigError(option, value, def, comment string) {
-	if comment == "" {
-		log.Printf("option %q does not support %q, defaults to %q\n", option, value, def)
-	} else {
-		log.Printf("option %q does not support %q, defaults to %q (%s)\n", option, value, def, comment)
-	}
+func (conf *config) reportConfigError(option, value string) {
+	log.Fatalf("option %q does not support %q\n", option, value)
 }

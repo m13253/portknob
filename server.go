@@ -79,7 +79,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 
 		expires := time.Time {}
 		if s.conf.Daemon.CookieLifespan != 0 {
-			time.Now().Add(time.Duration(s.conf.Daemon.CookieLifespan) * time.Second)
+			expires = time.Now().Add(time.Duration(s.conf.Daemon.CookieLifespan) * time.Second)
 		}
 		http.SetCookie(w, &http.Cookie {
 			Name:		"portknob_user",
