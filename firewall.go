@@ -253,7 +253,7 @@ func (fw *firewall) doStop() {
 }
 
 func (fw *firewall) doCleanup() {
-	now := time.Now()
+	now := time.Now().UTC()
 	fw.cache.Iter(func (addr string, expires time.Time) bool {
 		if now.Sub(expires) >= 0 {
 			fw.doRemove(addr)
@@ -265,7 +265,7 @@ func (fw *firewall) doCleanup() {
 }
 
 func (fw *firewall) doRestore() {
-	now := time.Now()
+	now := time.Now().UTC()
 	fw.cache.Iter(func (addr string, expires time.Time) bool {
 		if now.Sub(expires) >= 0 {
 			return true

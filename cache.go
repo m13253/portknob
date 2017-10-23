@@ -54,7 +54,7 @@ func (c *cache) Stop() {
 
 func (c *cache) Set(addr string, expires time.Time) (bool, error) {
 	k := []byte(addr)
-	v := []byte(expires.Format(time.RFC3339Nano))
+	v := []byte(expires.UTC().Format(time.RFC3339Nano))
 	existed := false
 	err := c.db.Update(func (tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("portknob"))
