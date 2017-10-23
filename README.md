@@ -32,7 +32,7 @@ To install Portknob as Systemd services, type:
 
     sudo make install
 
-Then edit the configuration file at `/etc/portknob.conf`.
+Then edit the configuration file at `/etc/portknob.conf`, see [portknob.conf](portknob.conf) as an example.
 
 Start and enable the service:
 
