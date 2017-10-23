@@ -69,6 +69,8 @@ func (fw *firewall) Start() error {
 		err = fw.execCmd("iptables", "-I", fw.listName, "-j", "DROP")
 		if err != nil { return err }
 	}
+	err = fw.execCmd("iptables", "-I", fw.listName, "-j", "LOG", "--log-prefix", "[PORTKNOB-DENY] ")
+	if err != nil { return err }
 	fw.execCmd("iptables", "-N", fw.chainName)
 	err = fw.execCmd("iptables", "-I", fw.chainName, "-j", "RETURN")
 	if err != nil { return err }
@@ -84,6 +86,8 @@ func (fw *firewall) Start() error {
 		err = fw.execCmd("ip6tables", "-I", fw.listName, "-j", "DROP")
 		if err != nil { return err }
 	}
+	err = fw.execCmd("ip6tables", "-I", fw.listName, "-j", "LOG", "--log-prefix", "[PORTKNOB-DENY] ")
+	if err != nil { return err }
 	fw.execCmd("ip6tables", "-N", fw.chainName)
 	err = fw.execCmd("ip6tables", "-I", fw.chainName, "-j", "RETURN")
 	if err != nil { return err }
