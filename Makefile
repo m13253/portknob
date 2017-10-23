@@ -11,7 +11,7 @@ clean:
 
 install: portknob
 	install -Dm0755 portknob "$(DESTDIR)$(PREFIX)/bin/portknob"
-	install -Dm0644 portknob.conf "$(DESTDIR)/etc/portknob.conf"
+	[ -e "$(DESTDIR)/etc/portknob.conf" ] || install -Dm0644 portknob.conf "$(DESTDIR)/etc/portknob.conf"
 	$(MAKE) -C systemd install "DESTDIR=$(DESTDIR)" "PREFIX=$(PREFIX)"
 
 uninstall:
