@@ -116,17 +116,21 @@ func (fw *firewall) Insert(addr string) error {
 		}
 	}
 
+	existed := false
 	if fw.conf.Daemon.FirewallLifespan != 0 {
-		err := fw.cache.Set(addr, time.Now().Add(time.Duration(fw.conf.Daemon.FirewallLifespan) * time.Second))
+		var err error
+		existed, err = fw.cache.Set(addr, time.Now().Add(time.Duration(fw.conf.Daemon.FirewallLifespan) * time.Second))
 		if err != nil {
 			return err
 		}
 	}
 
-	if ip.To4() != nil {
-		fw.insert4Req <- addr
-	} else {
-		fw.insert6Req <- addr
+	if !existed {
+		if ip.To4() != nil {
+			fw.insert4Req <- addr
+		} else {
+			fw.insert6Req <- addr
+		}
 	}
 	return nil
 }

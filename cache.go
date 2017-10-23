@@ -52,15 +52,17 @@ func (c *cache) Stop() {
 	c.db.Close()
 }
 
-func (c *cache) Set(addr string, expires time.Time) error {
+func (c *cache) Set(addr string, expires time.Time) (bool, error) {
 	k := []byte(addr)
 	v := []byte(expires.Format(time.RFC3339Nano))
+	existed := false
 	err := c.db.Update(func (tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("portknob"))
+		existed = b.Get(k) != nil
 		err := b.Put(k, v)
 		return err
 	})
-	return err
+	return existed, err
 }
 
 func (c *cache) Iter(cb func (addr string, expires time.Time) bool) error {
