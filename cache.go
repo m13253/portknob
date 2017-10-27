@@ -19,6 +19,7 @@
 package main
 
 import (
+	"net"
 	"time"
 	"github.com/boltdb/bolt"
 )
@@ -52,28 +53,26 @@ func (c *cache) Stop() {
 	c.db.Close()
 }
 
-func (c *cache) Set(addr string, expires time.Time) (bool, error) {
-	k := []byte(addr)
+func (c *cache) Set(addr net.IP, expires time.Time) error {
+	k := []byte(addr.String())
 	v := []byte(expires.UTC().Format(time.RFC3339Nano))
-	existed := false
 	err := c.db.Update(func (tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("portknob"))
-		existed = b.Get(k) != nil
 		err := b.Put(k, v)
 		return err
 	})
-	return existed, err
+	return err
 }
 
-func (c *cache) Iter(cb func (addr string, expires time.Time) bool) error {
+func (c *cache) Iter(cb func (addr net.IP, expires time.Time) bool) error {
 	err := c.db.Update(func (tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("portknob"))
 		cur := b.Cursor()
 		for k, v := cur.First(); k != nil; k, v = cur.Next() {
-			addr := string(k)
+			addr := net.ParseIP(string(k))
 			expires, err := time.Parse(time.RFC3339Nano, string(v))
 			willDelete := true
-			if err == nil {
+			if addr != nil && err == nil {
 				willDelete = cb(addr, expires)
 			}
 			if willDelete {

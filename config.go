@@ -63,11 +63,11 @@ type configDaemon struct {
 
 	// Lifespan to cache authorization info in visitor's web browser
 	// Default: 604800 (7 days)
-	CookieLifespan		uint	`toml:"cookie-lifespan"`
+	CookieLifespan		*uint64	`toml:"cookie-lifespan"`
 
 	// Lifespan to cache firewall whitelist for the visitor
 	// Default: 604800 (7 days)
-	FirewallLifespan	uint	`toml:"firewall-lifespan"`
+	FirewallLifespan	*uint64	`toml:"firewall-lifespan"`
 
 	// Firewall chain name for Portknob to work on
 	// Default: "portknob"
@@ -102,6 +102,12 @@ type configFirewall struct {
 	// Use "port" to specify a port number
 	// Use "first:last" to specify an inclusive range
 	DestPort	string		`toml:"dport"`
+
+	// Redirect target
+	// Redirect unauthorized requests to another address, instead of denying it
+	// Supported values: "addr" ":port" "addr:port"
+	// Default: "" (disabled)
+	Redir		string		`toml:"redir"`
 }
 
 func loadConfig(path string) (*config, error) {
@@ -137,11 +143,13 @@ func loadConfig(path string) (*config, error) {
 	if conf.Daemon.CacheDatabase == "" {
 		conf.Daemon.CacheDatabase = "/var/cache/portknob.db"
 	}
-	if conf.Daemon.CookieLifespan == 0 {
-		conf.Daemon.CookieLifespan = 604800
+	if conf.Daemon.CookieLifespan == nil {
+		var defaultCookieLifespan uint64 = 604800
+		conf.Daemon.CookieLifespan = &defaultCookieLifespan
 	}
-	if conf.Daemon.FirewallLifespan == 0 {
-		conf.Daemon.FirewallLifespan = 604800
+	if conf.Daemon.FirewallLifespan == nil {
+		var defaultFirewallLifespan uint64 = 604800
+		conf.Daemon.FirewallLifespan = &defaultFirewallLifespan
 	}
 	if conf.Daemon.FirewallChainName == "" {
 		conf.Daemon.FirewallChainName = "portknob"

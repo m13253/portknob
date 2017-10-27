@@ -78,8 +78,8 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 		}
 
 		expires := time.Time {}
-		if s.conf.Daemon.CookieLifespan != 0 {
-			expires = time.Now().Add(time.Duration(s.conf.Daemon.CookieLifespan) * time.Second).UTC()
+		if *s.conf.Daemon.CookieLifespan != 0 {
+			expires = time.Now().Add(time.Duration(*s.conf.Daemon.CookieLifespan) * time.Second).UTC()
 		}
 		http.SetCookie(w, &http.Cookie {
 			Name:		"portknob_user",
@@ -96,14 +96,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 			HttpOnly:	true,
 		})
 
-		prefix := uint(0)
-		if clientIP.To4() != nil {
-			prefix = s.conf.Daemon.IPv4Prefix
-		} else {
-			prefix = s.conf.Daemon.IPv6Prefix
-		}
-		clientCIDR := fmt.Sprintf("%s/%d", clientIP.String(), prefix)
-		err := s.fw.Insert(clientCIDR)
+		prefix, err := s.fw.Insert(clientIP)
 		if err != nil {
 			http.Error(w, "cannot update firewall", 500)
 			return
@@ -111,7 +104,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Write([]byte(fmt.Sprintf("<!DOCTYPE html><html><head><script language=\"javascript\">window.alert(\"Login succeeded for \" + %q);window.history.back();window.close();</script></head></html>\r\n", clientCIDR)))
+		w.Write([]byte(fmt.Sprintf("<!DOCTYPE html><html><head><script language=\"javascript\">window.alert(\"Login succeeded for %s/%d\");window.history.back();window.close();</script></head></html>\r\n", clientIP, prefix)))
 	} else {
 		w.Header().Set("WWW-Authenticate", "Basic")
 		http.Error(w, "Access Unauthorized", 401)
