@@ -19,9 +19,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"github.com/BurntSushi/toml"
 )
@@ -117,12 +117,8 @@ func loadConfig(path string) (*config, error) {
 		return nil, err
 	}
 
-	undecoded := metaData.Undecoded()
 	for _, key := range metaData.Undecoded() {
-		log.Printf("unknown option %q\n", key.String())
-	}
-	if len(undecoded) != 0 {
-		os.Exit(1)
+		return nil, &configError { fmt.Sprintf("unknown option %q", key.String()) }
 	}
 
 	if conf.Daemon.Listen == "" {
@@ -187,4 +183,12 @@ func loadConfig(path string) (*config, error) {
 
 func (conf *config) reportConfigError(option, value string) {
 	log.Fatalf("option %q does not support %q\n", option, value)
+}
+
+type configError struct {
+	err		string
+}
+
+func (e *configError) Error() string {
+	return e.err
 }
