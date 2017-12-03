@@ -20,7 +20,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"github.com/BurntSushi/toml"
@@ -153,12 +152,12 @@ func loadConfig(path string) (*config, error) {
 	if conf.Daemon.FirewallDenyMethod == "" {
 		conf.Daemon.FirewallDenyMethod = "reject"
 	} else if conf.Daemon.FirewallDenyMethod != "drop" && conf.Daemon.FirewallDenyMethod != "reject" {
-		conf.reportConfigError("filewall-deny-method", conf.Daemon.FirewallDenyMethod)
+		return nil, conf.reportConfigError("filewall-deny-method", conf.Daemon.FirewallDenyMethod)
 	}
 
 	for i, v := range conf.Firewall {
 		if v.Proto != "tcp" && v.Proto != "udp" && v.Proto != "" {
-			conf.reportConfigError("proto", v.Proto)
+			return nil, conf.reportConfigError("proto", v.Proto)
 		}
 		if v.Dest == "any" || v.Dest == "" {
 			conf.Firewall[i].Dest = ""
@@ -170,19 +169,19 @@ func loadConfig(path string) (*config, error) {
 			}
 			conf.Firewall[i].DestIP = net.ParseIP(v.Dest[:slash])
 			if conf.Firewall[i].DestIP == nil {
-				conf.reportConfigError("dest", v.Dest)
+				return nil, conf.reportConfigError("dest", v.Dest)
 			}
 		}
 		if v.DestPort == "" {
-			log.Fatalf("option \"dport\" not specified\n")
+			return nil, &configError { "option \"dport\" not specified\n" }
 		}
 	}
 
 	return conf, nil
 }
 
-func (conf *config) reportConfigError(option, value string) {
-	log.Fatalf("option %q does not support %q\n", option, value)
+func (conf *config) reportConfigError(option, value string) *configError {
+	return &configError { fmt.Sprintf("option %q does not support %q\n", option, value) }
 }
 
 type configError struct {
