@@ -104,6 +104,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Portknob-ACL-Allow", fmt.Sprintf("%s/%d", clientIP, prefix))
 		w.Write([]byte(fmt.Sprintf("<!DOCTYPE html><html><head><script language=\"javascript\">window.alert(\"Login succeeded for %s/%d\");window.history.back();window.close();</script></head></html>\r\n", clientIP, prefix)))
 	} else {
 		w.Header().Set("WWW-Authenticate", "Basic")
