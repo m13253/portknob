@@ -373,7 +373,7 @@ func (fw *firewall) eventLoop() {
 	for {
 		select {
 		case <-fw.stopReq:
-			fw.Stop()
+			fw.Stop(0)
 			return
 		case <-cleanupTick:
 			fw.doCleanup()
@@ -381,7 +381,7 @@ func (fw *firewall) eventLoop() {
 	}
 }
 
-func (fw *firewall) Stop() {
+func (fw *firewall) Stop(exitcode int) {
 	signal.Stop(fw.stopReq)
 
 	// IPv4
@@ -418,7 +418,7 @@ func (fw *firewall) Stop() {
 
 	fw.cache.Stop()
 
-	os.Exit(0)
+	os.Exit(exitcode)
 }
 
 func (fw *firewall) doCleanup() {

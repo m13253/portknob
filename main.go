@@ -42,6 +42,6 @@ func main() {
 	err = server.Start()
 	if err != nil {
 		log.Println(err)
-		firewall.Stop()
+		firewall.Stop(1)
 	}
 }
