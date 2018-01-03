@@ -373,7 +373,7 @@ func (fw *firewall) eventLoop() {
 	for {
 		select {
 		case <-fw.stopReq:
-			fw.doStop()
+			fw.Stop()
 			return
 		case <-cleanupTick:
 			fw.doCleanup()
@@ -381,7 +381,7 @@ func (fw *firewall) eventLoop() {
 	}
 }
 
-func (fw *firewall) doStop() {
+func (fw *firewall) Stop() {
 	signal.Stop(fw.stopReq)
 
 	// IPv4

@@ -41,6 +41,7 @@ func main() {
 	server := newServer(conf, firewall)
 	err = server.Start()
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		firewall.Stop()
 	}
 }
